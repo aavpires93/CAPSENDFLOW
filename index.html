@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>CapSendFlow</title>
+    <style>
+        body {
+            font-family: -apple-system, Segoe UI, Arial, sans-serif;
+            max-width: 480px;
+            margin: 60px auto;
+            padding: 0 20px;
+            color: #1a1a1a;
+            background-color: #f7f7f8;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        p {
+            color: #555;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        input[type="file"] {
+            padding: 8px 0;
+        }
+
+        button {
+            background-color: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        progress {
+            width: 100%;
+            height: 10px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        #texto-status {
+            font-size: 14px;
+            color: #333;
+            text-align: center;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.45);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-caixa {
+            background-color: #ffffff;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 300px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-caixa.sucesso {
+            border-top: 6px solid #16a34a;
+        }
+
+        .modal-caixa.erro {
+            border-top: 6px solid #dc2626;
+        }
+
+        #modal-mensagem {
+            margin: 0 0 16px 0;
+            color: #1a1a1a;
+        }
+
+        #modal-ok {
+            padding: 10px 28px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CapSendFlow</h1>
+    <p>Selecione um vídeo para enviar:</p>
+
+    <form id="formulario-envio">
+        <input type="file" id="arquivo-video" name="file" accept="video/*">
+        <button type="submit">Enviar vídeo</button>
+    </form>
+
+    <progress id="barra-progresso" value="0" max="100"></progress>
+    <p id="texto-status"></p>
+
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="modal-caixa" class="modal-caixa">
+            <p id="modal-mensagem"></p>
+            <button id="modal-ok" type="button">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const formulario = document.getElementById("formulario-envio");
+        const barra = document.getElementById("barra-progresso");
+        const texto = document.getElementById("texto-status");
+        const arquivoInput = document.getElementById("arquivo-video");
+
+        const modalOverlay = document.getElementById("modal-overlay");
+        const modalCaixa = document.getElementById("modal-caixa");
+        const modalMensagem = document.getElementById("modal-mensagem");
+        const modalOk = document.getElementById("modal-ok");
+
+        function mostrarModal(mensagem, tipo) {
+            modalMensagem.textContent = mensagem;
+            modalCaixa.className = "modal-caixa " + tipo;
+            modalOverlay.style.display = "flex";
+        }
+
+        modalOk.addEventListener("click", function () {
+            modalOverlay.style.display = "none";
+        });
+
+        formulario.addEventListener("submit", function (evento) {
+            evento.preventDefault();
+
+            const arquivo = arquivoInput.files[0];
+
+            if (!arquivo) {
+                mostrarModal("Selecione um arquivo primeiro.", "erro");
+                return;
+            }
+
+            barra.value = 0;
+            texto.textContent = "";
+
+            const dadosFormulario = new FormData();
+            dadosFormulario.append("file", arquivo);
+
+            const requisicao = new XMLHttpRequest();
+            requisicao.open("POST", "/upload");
+
+            requisicao.upload.addEventListener("progress", function (evento) {
+                if (evento.lengthComputable) {
+                    const porcentagem = (evento.loaded / evento.total) * 100;
+                    barra.value = porcentagem;
+                    texto.textContent = "Enviando: " + porcentagem.toFixed(1) + "%";
+                }
+            });
+
+            requisicao.addEventListener("load", function () {
+                const sucesso = requisicao.status >= 200 && requisicao.status < 300;
+                const resposta = JSON.parse(requisicao.responseText);
+
+                texto.textContent = "";
+                arquivoInput.value = "";
+
+                if (sucesso) {
+                    mostrarModal("Envio concluído: " + resposta.nome_arquivo +
+                        " (" + resposta.tempo_segundos + "s)", "sucesso");
+                } else {
+                    mostrarModal("Erro (" + requisicao.status + "): " + resposta.erro, "erro");
+                }
+            });
+
+            requisicao.addEventListener("error", function () {
+                texto.textContent = "";
+                arquivoInput.value = "";
+                mostrarModal("Falha de conexão. Verifique sua rede e tente novamente.", "erro");
+            });
+
+            requisicao.send(dadosFormulario);
+        });
+    </script>
+</body>
+</html>
